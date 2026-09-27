@@ -1,0 +1,59 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CHRONO ECHO</title>
+<style>
+body{margin:0;background:#080b14;color:#eef3ff;font-family:Arial;text-align:center}.app{max-width:850px;margin:auto;padding:20px}
+h1{letter-spacing:4px;margin:4px}.tag{color:#91a1c4;margin-bottom:15px}
+button{background:#283956;color:white;border:0;border-radius:8px;padding:10px 14px;margin:3px;font-weight:bold}
+.stats{display:flex;justify-content:center;gap:18px;flex-wrap:wrap;background:#11192b;padding:10px;border-radius:10px}
+#board{width:min(650px,94vw);aspect-ratio:1;margin:12px auto;display:grid;grid-template-columns:repeat(12,1fr);gap:3px;background:#050711;padding:6px;border-radius:12px}
+.cell{background:#17223a;border-radius:4px;position:relative}.wall{background:#05070c}.exit{background:#20583f}
+.plate{background:#806a24}.plate.on{box-shadow:0 0 13px #e1c04a}.door{background:#713e49}.door.open{background:#255342}
+.player,.echo{position:absolute;inset:17%;border-radius:50%}.player{background:#5de7ff;box-shadow:0 0 15px #5de7ff}.echo{background:#ae7cff;box-shadow:0 0 12px #ae7cff;opacity:.75}
+#msg{min-height:40px;color:#b9c7e5}.help{font-size:13px;color:#8291b1;line-height:1.5}
+</style></head><body><div class="app">
+<h1>CHRONO ECHO</h1><div class="tag">The Room Remembers.</div>
+<div><button onclick="endLoop()">⏳ End Time Loop</button><button onclick="restart()">↻ Restart</button><button onclick="nextLevel()">▶ Next Level</button></div>
+<div class="stats"><span>Level: <b id="lv">1</b></span><span>Loop: <b id="lp">1</b></span><span>Moves: <b id="mv">0</b></span><span>Echoes: <b id="ec">0</b></span></div>
+<div id="board"></div><div id="msg">Reach the green exit. Your past actions can become your team.</div>
+<div class="help">WASD / Arrow Keys = move. Stand on gold plates to open red doors. Collect keys when required. End a loop to create an Echo.</div>
+</div>
+<script>
+const W=12,H=12;
+const levels=[
+{start:[1,1],exit:[10,10],walls:["3,0","3,1","3,2","3,3","6,2","7,2","8,2","6,3","8,3","6,4","2,6","3,6","4,6","7,7","8,7","9,7"],plates:[[5,5]],doors:[[7,5]],keys:[]},
+{start:[1,1],exit:[10,10],walls:["2,0","2,1","2,2","5,2","6,2","7,2","5,3","7,3","5,4","1,6","2,6","3,6","8,6","9,6"],plates:[[4,5]],doors:[[6,5]],keys:[]},
+{start:[1,1],exit:[10,10],walls:["4,0","4,1","4,2","4,3","7,3","8,3","9,3","2,6","3,6","4,6","7,7","8,7","9,7"],plates:[[5,5]],doors:[[6,5]],keys:[[9,5]]},
+{start:[1,1],exit:[10,10],walls:["3,0","3,1","3,2","3,3","8,0","8,1","8,2","8,3","5,5","6,5","7,5","2,8","3,8","4,8","7,8","8,8"],plates:[[4,4],[9,4]],doors:[[5,4],[8,4]],keys:[]},
+{start:[1,1],exit:[10,10],walls:["2,0","2,1","2,2","2,3","5,2","6,2","7,2","9,3","10,3","4,6","5,6","6,6","7,6","8,6","3,9","4,9","8,9","9,9"],plates:[[4,4],[8,4]],doors:[[5,4],[7,4]],keys:[[10,5]]}
+];
+let L=0,p,rec=[],echoes=[],loop=1,moves=0,key=false,won=false,timer;
+const cfg=()=>levels[L], k=(x,y)=>x+","+y;
+function wall(x,y){return cfg().walls.includes(k(x,y))}
+function isDoor(x,y){return cfg().doors.some(a=>a[0]==x&&a[1]==y)}
+function isPlate(x,y){return cfg().plates.some(a=>a[0]==x&&a[1]==y)}
+function active(x,y){return (p.x==x&&p.y==y)||echoes.some(e=>e.x==x&&e.y==y)}
+function blocked(x,y){return x<0||y<0||x>=W||y>=H||wall(x,y)||(isDoor(x,y)&&!cfg().plates.every(a=>active(a[0],a[1])))}
+function setup(){clearTimeout(timer);p={x:cfg().start[0],y:cfg().start[1]};rec=[];echoes=[];loop=1;moves=0;key=false;won=false;message("Reach the exit. Plan what you want your future Echoes to do.");draw()}
+function message(x){document.getElementById("msg").textContent=x}
+function draw(){
+ let b=document.getElementById("board");b.innerHTML="";
+ for(let y=0;y<H;y++)for(let x=0;x<W;x++){let c=document.createElement("div");c.className="cell";
+ if(wall(x,y))c.classList.add("wall");if(x==cfg().exit[0]&&y==cfg().exit[1])c.classList.add("exit");
+ if(isPlate(x,y)){c.classList.add("plate");if(active(x,y))c.classList.add("on")}
+ if(isDoor(x,y)){c.classList.add("door");if(!blocked(x,y))c.classList.add("open")}
+ if(cfg().keys.some(a=>a[0]==x&&a[1]==y)&&!key)c.textContent="🔑";
+ if(p.x==x&&p.y==y){let q=document.createElement("i");q.className="player";c.appendChild(q)}
+ echoes.forEach(e=>{if(e.x==x&&e.y==y){let q=document.createElement("i");q.className="echo";c.appendChild(q)}});b.appendChild(c)}
+ lv.textContent=L+1;lp.textContent=loop;mv.textContent=moves;ec.textContent=echoes.length
+}
+function move(dx,dy,save=true){if(won)return;let x=p.x+dx,y=p.y+dy;if(blocked(x,y))return;p={x,y};if(save)rec.push([dx,dy]);moves++;
+ if(cfg().keys.some(a=>a[0]==x&&a[1]==y))key=true;
+ if(x==cfg().exit[0]&&y==cfg().exit[1]){if(!cfg().keys.length||key){won=true;message("✨ Level complete! Your past actions solved the room.")}else message("The exit needs the key.")}
+ draw()}
+function replay(seq,i,e){if(i>=seq.length)return;let [dx,dy]=seq[i],x=e.x+dx,y=e.y+dy;if(!blocked(x,y)){e.x=x;e.y=y}draw();timer=setTimeout(()=>replay(seq,i+1,e),130)}
+function endLoop(){if(!rec.length){message("Make a move first.");return}let seq=[...rec];let e={x:cfg().start[0],y:cfg().start[1]};echoes.push(e);rec=[];p={x:cfg().start[0],y:cfg().start[1]};moves=0;loop++;key=false;message("Echo created! It is replaying your previous loop.");draw();clearTimeout(timer);replay(seq,0,e)}
+function restart(){setup()}function nextLevel(){if(!won){message("Complete this level first.");return}if(L<levels.length-1){L++;setup()}else message("🏆 MASTER LOOP COMPLETE — all five rooms solved!")}
+document.addEventListener("keydown",e=>{let m={w:[0,-1],arrowup:[0,-1],s:[0,1],arrowdown:[0,1],a:[-1,0],arrowleft:[-1,0],d:[1,0],arrowright:[1,0]}[e.key.toLowerCase()];if(m){e.preventDefault();move(m[0],m[1])}});
+setup();
+</script></body></html>
